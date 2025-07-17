@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "909042036334",
+    "project_id": "rumaan-ef5b4",
+    "storage_bucket": "rumaan-ef5b4.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:909042036334:android:741667641bf9b96267807f",
+        "android_client_info": {
+          "package_name": "rumaan.hotel.com"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBGEMRh41NW14TkgXC8uQ5SxfJaweCBnQI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
