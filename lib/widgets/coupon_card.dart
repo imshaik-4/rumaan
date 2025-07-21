@@ -1,9 +1,8 @@
+// Assuming your existing coupon_card.dart looks something like this.
+// I've updated it to use the new theme colors and a slightly more modern look.
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:barcode_widget/barcode_widget.dart';
-
-import '../models/coupon.dart';
-import 'barcode_display.dart';
+import '../models/coupon.dart'; // Assuming you have this model
 
 class CouponCard extends StatelessWidget {
   final Coupon coupon;
@@ -14,97 +13,112 @@ class CouponCard extends StatelessWidget {
     super.key,
     required this.coupon,
     this.onRedeem,
-    this.isRedeemable = true,
+    this.isRedeemable = false,
   });
 
   @override
   Widget build(BuildContext context) {
+    final ColorScheme colorScheme = Theme.of(context).colorScheme;
+
     return Card(
-      elevation: 6,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16.r)),
+      // Card theme is already set in appTheme, so no need to repeat elevation/shape
       child: Padding(
-        padding: EdgeInsets.all(20.w),
+        padding: EdgeInsets.all(16.w),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
               coupon.title,
-              style: TextStyle(fontSize: 22.sp, fontWeight: FontWeight.bold, color: Colors.blueGrey[800]),
-              maxLines: 1,
+              style: TextStyle(
+                fontSize: 20.sp,
+                fontWeight: FontWeight.bold,
+                color: colorScheme.onSurface,
+              ),
+              maxLines: 2,
               overflow: TextOverflow.ellipsis,
             ),
             SizedBox(height: 8.h),
             Text(
-              '${coupon.discount.toStringAsFixed(0)}% OFF',
-              style: TextStyle(fontSize: 28.sp, fontWeight: FontWeight.w900, color: Colors.green[700]),
-            ),
-            SizedBox(height: 8.h),
-            Flexible( // Use Expanded to allow description to take available space
-              child: Text(
-                coupon.description,
-                style: TextStyle(fontSize: 16.sp, color: Colors.grey[700]),
-                maxLines: 3, // Allow up to 3 lines
-                overflow: TextOverflow.ellipsis,
+              coupon.description,
+              style: TextStyle(
+                fontSize: 14.sp,
+                color: colorScheme.onSurface.withOpacity(0.7),
               ),
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
             ),
             SizedBox(height: 12.h),
             Row(
               children: [
+                Icon(Icons.discount, size: 18.sp, color: colorScheme.primary),
+                SizedBox(width: 4.w),
+                Text(
+                  '${coupon.discount.toStringAsFixed(0)}% Off',
+                  style: TextStyle(
+                    fontSize: 16.sp,
+                    fontWeight: FontWeight.bold,
+                    color: colorScheme.primary,
+                  ),
+                ),
+                SizedBox(width: 12.w),
                 Icon(Icons.category, size: 18.sp, color: Colors.grey[600]),
                 SizedBox(width: 4.w),
                 Text(
                   coupon.category.toString().split('.').last.capitalize(),
                   style: TextStyle(fontSize: 14.sp, color: Colors.grey[600]),
                 ),
-                SizedBox(width: 16.w),
-                Icon(Icons.calendar_today, size: 18.sp, color: Colors.grey[600]),
+              ],
+            ),
+            SizedBox(height: 8.h),
+            Row(
+              children: [
+                Icon(Icons.calendar_today, size: 16.sp, color: Colors.grey[600]),
                 SizedBox(width: 4.w),
                 Text(
                   'Valid until: ${coupon.formattedValidUntil}',
-                  style: TextStyle(fontSize: 14.sp, color: Colors.grey[600]),
+                  style: TextStyle(fontSize: 12.sp, color: Colors.grey[600]),
                 ),
               ],
             ),
-            SizedBox(height: 12.h), // Add some space before buttons
-            if (isRedeemable)
-              Center(
-                child: ElevatedButton.icon(
-                  onPressed: onRedeem,
-                  icon: Icon(Icons.check_circle_outline, size: 20.sp),
-                  label: Text('Redeem Coupon', style: TextStyle(fontSize: 16.sp)),
+            SizedBox(height: 8.h),
+            Row(
+              children: [
+                Icon(Icons.repeat, size: 16.sp, color: Colors.grey[600]),
+                SizedBox(width: 4.w),
+                Text(
+                  'Single Use: ${coupon.isSingleUse ? 'Yes' : 'No'}',
+                  style: TextStyle(fontSize: 12.sp, color: Colors.grey[600]),
                 ),
-              )
-            else
-              Center(
-                child: Column(
-                  children: [
-                    Text(
-                      'Redeemed!',
-                      style: TextStyle(fontSize: 18.sp, fontWeight: FontWeight.bold, color: Colors.green[700]),
-                    ),
-                    SizedBox(height: 8.h),
-                    ElevatedButton.icon(
-                      onPressed: () {
-                        showDialog(
-                          context: context,
-                          builder: (context) => AlertDialog(
-                            title: Text('Your Barcode', style: TextStyle(fontSize: 20.sp)),
-                            content: BarcodeDisplay(barcodeData: coupon.barcodeData),
-                            actions: [
-                              TextButton(
-                                onPressed: () => Navigator.of(context).pop(),
-                                child: Text('Close', style: TextStyle(fontSize: 16.sp)),
-                              ),
-                            ],
-                          ),
-                        );
-                      },
-                      icon: Icon(Icons.barcode_reader, size: 20.sp),
-                      label: Text('Show Barcode', style: TextStyle(fontSize: 16.sp)),
-                    ),
-                  ],
+              ],
+            ),
+            SizedBox(height: 8.h),
+            Row(
+              children: [
+                Icon(Icons.people, size: 16.sp, color: Colors.grey[600]),
+                SizedBox(width: 4.w),
+                Text(
+                  'Used by: ${coupon.usedBy.length} users',
+                  style: TextStyle(fontSize: 12.sp, color: Colors.grey[600]),
+                ),
+              ],
+            ),
+            const Spacer(), // Pushes content to top, button to bottom
+            if (isRedeemable) ...[
+              SizedBox(height: 16.h),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: onRedeem,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.green[700], // Green for redeem
+                    foregroundColor: Colors.white,
+                    padding: EdgeInsets.symmetric(vertical: 10.h),
+                    textStyle: TextStyle(fontSize: 16.sp, fontWeight: FontWeight.bold),
+                  ),
+                  child: Text('Redeem Coupon'),
                 ),
               ),
+            ],
           ],
         ),
       ),
@@ -112,6 +126,7 @@ class CouponCard extends StatelessWidget {
   }
 }
 
+// Assuming this extension is defined somewhere accessible, e.g., in a utils file or directly in the main file.
 extension StringExtension on String {
   String capitalize() {
     if (isEmpty) return this;

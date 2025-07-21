@@ -3,17 +3,18 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
-import 'dart:developer' as dev; // Import for dev.log
+import 'dart:developer' as dev;
 
-import '../providers/auth_provider.dart'
-    as AppAuthProvider; // <--- Changed this line
+import '../providers/auth_provider.dart';
 import '../providers/coupon_provider.dart';
 import '../providers/analytics_provider.dart';
 import '../models/coupon.dart';
 import '../widgets/barcode_display.dart';
-import 'barcode_scanner_screen.dart'; // Import the new scanner screen
+import '../widgets/sidebar_item.dart'; // Import the new SidebarItem
+import '../widgets/metric_card.dart'; // Import the new MetricCard
+import 'barcode_scanner_screen.dart';
 import 'package:fluttertoast/fluttertoast.dart';
-import 'manage_users_tab.dart'; // Import the new manage users tab
+import 'manage_users_tab.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({super.key});
@@ -22,83 +23,393 @@ class AdminDashboardScreen extends StatefulWidget {
   State<AdminDashboardScreen> createState() => _AdminDashboardScreenState();
 }
 
-class _AdminDashboardScreenState extends State<AdminDashboardScreen>
-    with SingleTickerProviderStateMixin {
-  late TabController _tabController;
+class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
+  int _selectedIndex = 0; // 0: Dashboard, 1: Analytics, 2: User Management, 3: Create Coupon, 4: Manage Coupons, 5: Scan Coupon, 6: Settings
+  final List<Widget> _widgetOptions = const <Widget>[
+    _DashboardTab(),
+    _AnalyticsTab(),
+    ManageUsersTab(),
+    _CreateCouponTab(),
+    _ManageCouponsTab(),
+    _ScanCouponTab(),
+    _SettingsTab(),
+  ];
 
-  @override
-  void initState() {
-    super.initState();
-    _tabController = TabController(
-        length: 5, vsync: this); // Increased length for Manage Users tab
-  }
-
-  @override
-  void dispose() {
-    _tabController.dispose();
-    super.dispose();
+  void _onItemTapped(int index) {
+    setState(() {
+      _selectedIndex = index;
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-    final authProvider = Provider.of<AppAuthProvider.AuthProvider>(
-        context); // <--- Changed this line
-
-    if (!authProvider.isAuthenticated ||
-        !(authProvider.isAdmin || authProvider.isReceptionist)) {
-      // Redirect to login if not authenticated or not admin/receptionist
+    final authProvider = Provider.of<AuthProvider>(context);
+    if (!authProvider.isAuthenticated || !(authProvider.isAdmin || authProvider.isReceptionist)) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         context.go('/');
       });
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
+    bool isWideScreen = MediaQuery.of(context).size.width > 900;
+    final ColorScheme colorScheme = Theme.of(context).colorScheme;
+
     return Scaffold(
       appBar: AppBar(
-        title: Text('Admin Dashboard', style: TextStyle(fontSize: 20.sp)),
+        title: Text(
+          'Rumaan Hotel',
+          style: TextStyle(fontSize: 20.sp),
+          overflow: TextOverflow.ellipsis,
+          maxLines: 1,
+        ),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: () async {
+          PopupMenuButton<String>(
+            onSelected: (value) async {
+              if (value == 'logout') {
+                await authProvider.signOut();
+                context.go('/');
+              }
+            },
+            itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+              PopupMenuItem<String>(
+                value: 'profile',
+                child: Text('Profile', style: TextStyle(fontSize: 16.sp)),
+              ),
+              PopupMenuItem<String>(
+                value: 'settings',
+                child: Text('Settings', style: TextStyle(fontSize: 16.sp)),
+              ),
+              const PopupMenuDivider(),
+              PopupMenuItem<String>(
+                value: 'logout',
+                child: Text('Logout', style: TextStyle(fontSize: 16.sp)),
+              ),
+            ],
+            child: Padding(
+              padding: EdgeInsets.symmetric(horizontal: 16.w),
+              child: Row(
+                children: [
+                  CircleAvatar(
+                    backgroundColor: colorScheme.onPrimary,
+                    child: Icon(Icons.person, color: colorScheme.primary),
+                  ),
+                  SizedBox(width: 8.w),
+                  Text(
+                    authProvider.appUser?.email?.split('@').first ?? 'Admin',
+                    style: TextStyle(fontSize: 16.sp, color: colorScheme.onPrimary),
+                  ),
+                  Icon(Icons.arrow_drop_down, color: colorScheme.onPrimary),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+      drawer: isWideScreen ? null : _buildDrawer(context, authProvider),
+      body: Row(
+        children: [
+          if (isWideScreen) _buildSidebar(context, authProvider),
+          Expanded(
+            child: Container(
+              color: colorScheme.background, // Use theme background color
+              child: _widgetOptions.elementAt(_selectedIndex),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDrawer(BuildContext context, AuthProvider authProvider) {
+    final ColorScheme colorScheme = Theme.of(context).colorScheme;
+    return Drawer(
+      child: ListView(
+        padding: EdgeInsets.zero,
+        children: <Widget>[
+          DrawerHeader(
+            decoration: BoxDecoration(
+              color: colorScheme.primary,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                CircleAvatar(
+                  radius: 30.r,
+                  backgroundColor: colorScheme.onPrimary,
+                  child: Icon(Icons.person, size: 40.sp, color: colorScheme.primary),
+                ),
+                SizedBox(height: 8.h),
+                Text(
+                  authProvider.appUser?.email ?? 'Admin User',
+                  style: TextStyle(color: colorScheme.onPrimary, fontSize: 18.sp),
+                ),
+                Text(
+                  authProvider.appUser?.role.toString() ?? 'Role',
+                  style: TextStyle(color: colorScheme.onPrimary.withOpacity(0.7), fontSize: 14.sp),
+                ),
+              ],
+            ),
+          ),
+          SidebarItem(
+            icon: Icons.dashboard,
+            title: 'Dashboard',
+            isSelected: _selectedIndex == 0,
+            onTap: () {
+              _onItemTapped(0);
+              Navigator.pop(context);
+            },
+            isDrawerItem: true,
+          ),
+          SidebarItem(
+            icon: Icons.analytics,
+            title: 'Analytics',
+            isSelected: _selectedIndex == 1,
+            onTap: () {
+              _onItemTapped(1);
+              Navigator.pop(context);
+            },
+            isDrawerItem: true,
+          ),
+          SidebarItem(
+            icon: Icons.people,
+            title: 'User Management',
+            isSelected: _selectedIndex == 2,
+            onTap: () {
+              _onItemTapped(2);
+              Navigator.pop(context);
+            },
+            badgeCount: 24, // Example badge
+            isDrawerItem: true,
+          ),
+          SidebarItem(
+            icon: Icons.add_circle_outline,
+            title: 'Create Coupon',
+            isSelected: _selectedIndex == 3,
+            onTap: () {
+              _onItemTapped(3);
+              Navigator.pop(context);
+            },
+            isDrawerItem: true,
+          ),
+          SidebarItem(
+            icon: Icons.list_alt,
+            title: 'Manage Coupons',
+            isSelected: _selectedIndex == 4,
+            onTap: () {
+              _onItemTapped(4);
+              Navigator.pop(context);
+            },
+            isDrawerItem: true,
+          ),
+          SidebarItem(
+            icon: Icons.qr_code_scanner,
+            title: 'Scan Coupon',
+            isSelected: _selectedIndex == 5,
+            onTap: () {
+              _onItemTapped(5);
+              Navigator.pop(context);
+            },
+            isDrawerItem: true,
+          ),
+          SidebarItem(
+            icon: Icons.settings,
+            title: 'Settings',
+            isSelected: _selectedIndex == 6,
+            onTap: () {
+              _onItemTapped(6);
+              Navigator.pop(context);
+            },
+            isDrawerItem: true,
+          ),
+          Divider(height: 1.h, color: colorScheme.outline),
+          ListTile(
+            leading: Icon(Icons.logout, size: 24.sp, color: Colors.red[700]),
+            title: Text('Logout', style: TextStyle(fontSize: 16.sp, color: Colors.red[700])),
+            onTap: () async {
+              Navigator.pop(context);
               await authProvider.signOut();
               context.go('/');
             },
           ),
         ],
-        bottom: TabBar(
-          controller: _tabController,
-          isScrollable:
-              true, // Make tabs scrollable for smaller screens/more tabs
-          indicatorColor: Colors.white, // White indicator for professionalism
-          labelColor: Colors.white, // White text for selected tab
-          unselectedLabelColor: Colors.white70, // Slightly faded for unselected
-          labelStyle: TextStyle(fontSize: 16.sp, fontWeight: FontWeight.bold),
-          unselectedLabelStyle: TextStyle(fontSize: 14.sp),
-          tabs: [
-            Tab(text: 'Analytics', icon: Icon(Icons.analytics, size: 24.sp)),
-            Tab(
-                text: 'Manage Coupons',
-                icon: Icon(Icons.list_alt, size: 24.sp)),
-            Tab(
-                text: 'Create Coupon',
-                icon: Icon(Icons.add_circle_outline, size: 24.sp)),
-            Tab(
-                text: 'Scan Coupon',
-                icon: Icon(Icons.qr_code_scanner, size: 24.sp)),
-            Tab(
-                text: 'Manage Users',
-                icon: Icon(Icons.people, size: 24.sp)), // New tab
-          ],
-        ),
       ),
-      body: TabBarView(
-        controller: _tabController,
-        children: const [
-          _AnalyticsTab(),
-          _ManageCouponsTab(),
-          _CreateCouponTab(),
-          _ScanCouponTab(),
-          ManageUsersTab(), // Changed from _ManageUsersTab() to ManageUsersTab()
+    );
+  }
+
+  Widget _buildSidebar(BuildContext context, AuthProvider authProvider) {
+    final ColorScheme colorScheme = Theme.of(context).colorScheme;
+    return Container(
+      width: 250.w,
+      color: colorScheme.primary, // Darker background for sidebar
+      child: Column(
+        children: [
+          Padding(
+            padding: EdgeInsets.symmetric(vertical: 24.h, horizontal: 16.w),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Rumaan Hotel',
+                  style: TextStyle(
+                    color: colorScheme.onPrimary,
+                    fontSize: 24.sp,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
+                ),
+                Text(
+                  'Coupon System',
+                  style: TextStyle(
+                    color: colorScheme.onPrimary.withOpacity(0.7),
+                    fontSize: 16.sp,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
+                ),
+              ],
+            ),
+          ),
+          Divider(color: colorScheme.onPrimary.withOpacity(0.3), height: 1.h),
+          Expanded(
+            child: ListView(
+              padding: EdgeInsets.zero,
+              children: [
+                SidebarItem(
+                  icon: Icons.dashboard,
+                  title: 'Dashboard',
+                  isSelected: _selectedIndex == 0,
+                  onTap: () => _onItemTapped(0),
+                ),
+                SidebarItem(
+                  icon: Icons.analytics,
+                  title: 'Analytics',
+                  isSelected: _selectedIndex == 1,
+                  onTap: () => _onItemTapped(1),
+                ),
+                SidebarItem(
+                  icon: Icons.people,
+                  title: 'User Management',
+                  isSelected: _selectedIndex == 2,
+                  onTap: () => _onItemTapped(2),
+                  badgeCount: 24, // Example badge
+                ),
+                SidebarItem(
+                  icon: Icons.add_circle_outline,
+                  title: 'Create Coupon',
+                  isSelected: _selectedIndex == 3,
+                  onTap: () => _onItemTapped(3),
+                ),
+                SidebarItem(
+                  icon: Icons.list_alt,
+                  title: 'Manage Coupons',
+                  isSelected: _selectedIndex == 4,
+                  onTap: () => _onItemTapped(4),
+                ),
+                SidebarItem(
+                  icon: Icons.qr_code_scanner,
+                  title: 'Scan Coupon',
+                  isSelected: _selectedIndex == 5,
+                  onTap: () => _onItemTapped(5),
+                ),
+                SidebarItem(
+                  icon: Icons.settings,
+                  title: 'Settings',
+                  isSelected: _selectedIndex == 6,
+                  onTap: () => _onItemTapped(6),
+                ),
+              ],
+            ),
+          ),
+          Divider(color: colorScheme.onPrimary.withOpacity(0.3), height: 1.h),
+          Padding(
+            padding: EdgeInsets.symmetric(vertical: 16.h, horizontal: 16.w),
+            child: Row(
+              children: [
+                CircleAvatar(
+                  backgroundColor: colorScheme.onPrimary,
+                  child: Icon(Icons.person, color: colorScheme.primary),
+                ),
+                SizedBox(width: 12.w),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        authProvider.appUser?.email?.split('@').first ?? 'John Doe',
+                        style: TextStyle(color: colorScheme.onPrimary, fontSize: 16.sp, fontWeight: FontWeight.bold),
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 1,
+                      ),
+                      Text(
+                        authProvider.appUser?.role.toString()?? 'Role',
+                        style: TextStyle(color: colorScheme.onPrimary.withOpacity(0.7), fontSize: 14.sp),
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 1,
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(Icons.arrow_drop_up, color: colorScheme.onPrimary),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DashboardTab extends StatelessWidget {
+  const _DashboardTab();
+  @override
+  Widget build(BuildContext context) {
+    final ColorScheme colorScheme = Theme.of(context).colorScheme;
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.dashboard, size: 80.sp, color: colorScheme.onBackground.withOpacity(0.4)),
+          SizedBox(height: 16.h),
+          Text(
+            'Dashboard Overview (Coming Soon!)',
+            style: TextStyle(fontSize: 24.sp, fontWeight: FontWeight.bold, color: colorScheme.onBackground.withOpacity(0.6)),
+            textAlign: TextAlign.center,
+          ),
+          SizedBox(height: 8.h),
+          Text(
+            'Your key metrics and quick actions will appear here.',
+            style: TextStyle(fontSize: 16.sp, color: colorScheme.onBackground.withOpacity(0.5)),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SettingsTab extends StatelessWidget {
+  const _SettingsTab();
+  @override
+  Widget build(BuildContext context) {
+    final ColorScheme colorScheme = Theme.of(context).colorScheme;
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.settings, size: 80.sp, color: colorScheme.onBackground.withOpacity(0.4)),
+          SizedBox(height: 16.h),
+          Text(
+            'Settings (Coming Soon!)',
+            style: TextStyle(fontSize: 24.sp, fontWeight: FontWeight.bold, color: colorScheme.onBackground.withOpacity(0.6)),
+            textAlign: TextAlign.center,
+          ),
+          SizedBox(height: 8.h),
+          Text(
+            'Manage your application settings here.',
+            style: TextStyle(fontSize: 16.sp, color: colorScheme.onBackground.withOpacity(0.5)),
+            textAlign: TextAlign.center,
+          ),
         ],
       ),
     );
@@ -107,34 +418,28 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
 
 class _AnalyticsTab extends StatelessWidget {
   const _AnalyticsTab();
-
   @override
   Widget build(BuildContext context) {
     final analyticsProvider = Provider.of<AnalyticsProvider>(context);
-    return Padding(
+    return SingleChildScrollView(
       padding: EdgeInsets.all(24.w),
       child: LayoutBuilder(
         builder: (context, constraints) {
           bool isWideScreen = constraints.maxWidth > 600;
           return Center(
             child: ConstrainedBox(
-              constraints: BoxConstraints(
-                  maxWidth: isWideScreen ? 900.w : double.infinity),
+              constraints: BoxConstraints(maxWidth: isWideScreen ? 900.w : double.infinity),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('App Usage Overview',
-                      style: TextStyle(
-                          fontSize: 28.sp, fontWeight: FontWeight.bold)),
+                  Text('App Usage Overview', style: TextStyle(fontSize: 28.sp, fontWeight: FontWeight.bold)),
                   SizedBox(height: 24.h),
                   GridView.builder(
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
                     gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
-                      maxCrossAxisExtent:
-                          isWideScreen ? 300.w : 400.w, // Adjusted for web
-                      childAspectRatio:
-                          isWideScreen ? 1.0 : 1.2, // Adjusted for web
+                      maxCrossAxisExtent: isWideScreen ? 300.w : 400.w,
+                      childAspectRatio: isWideScreen ? 1.0 : 1.2,
                       crossAxisSpacing: 24.w,
                       mainAxisSpacing: 24.h,
                     ),
@@ -142,23 +447,29 @@ class _AnalyticsTab extends StatelessWidget {
                     itemBuilder: (context, index) {
                       switch (index) {
                         case 0:
-                          return _buildMetricCard(
-                              context,
-                              'Total Users',
-                              analyticsProvider.totalUsers.toString(),
-                              Icons.people);
+                          return MetricCard(
+                            title: 'Total Users',
+                            value: analyticsProvider.totalUsers.toString(),
+                            icon: Icons.people,
+                          );
                         case 1:
-                          return _buildMetricCard(
-                              context,
-                              'Active Coupons',
-                              analyticsProvider.activeCoupons.toString(),
-                              Icons.local_activity);
+                          return MetricCard(
+                            title: 'Active Coupons',
+                            value: analyticsProvider.activeCoupons.toString(),
+                            icon: Icons.local_activity,
+                          );
                         case 2:
-                          return _buildMetricCard(context, 'Total Logins',
-                              'N/A', Icons.login); // Placeholder
+                          return MetricCard(
+                            title: 'Total Logins',
+                            value: 'N/A', // Placeholder
+                            icon: Icons.login,
+                          );
                         case 3:
-                          return _buildMetricCard(context, 'Total Savings',
-                              'N/A', Icons.attach_money); // Placeholder
+                          return MetricCard(
+                            title: 'Total Savings',
+                            value: 'N/A', // Placeholder
+                            icon: Icons.attach_money,
+                          );
                         default:
                           return Container();
                       }
@@ -172,212 +483,130 @@ class _AnalyticsTab extends StatelessWidget {
       ),
     );
   }
-
-  Widget _buildMetricCard(
-      BuildContext context, String title, String value, IconData icon) {
-    return Card(
-      elevation: 4,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.r)),
-      child: Container(
-        padding: EdgeInsets.all(20.w),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(icon, size: 48.sp, color: Colors.blueGrey[700]),
-            SizedBox(height: 16.h),
-            Text(title,
-                style: TextStyle(fontSize: 18.sp, color: Colors.grey[700])),
-            SizedBox(height: 8.h),
-            Text(value,
-                style: TextStyle(fontSize: 32.sp, fontWeight: FontWeight.bold)),
-          ],
-        ),
-      ),
-    );
-  }
 }
 
 class _ManageCouponsTab extends StatelessWidget {
   const _ManageCouponsTab();
-
   @override
   Widget build(BuildContext context) {
     final couponProvider = Provider.of<CouponProvider>(context);
     final allCoupons = couponProvider.allCoupons;
+    final ColorScheme colorScheme = Theme.of(context).colorScheme;
 
-    return Padding(
+    return SingleChildScrollView(
       padding: EdgeInsets.all(24.w),
       child: LayoutBuilder(
         builder: (context, constraints) {
           bool isWideScreen = constraints.maxWidth > 600;
           return Center(
             child: ConstrainedBox(
-              constraints: BoxConstraints(
-                  maxWidth: isWideScreen ? 1000.w : double.infinity),
+              constraints: BoxConstraints(maxWidth: isWideScreen ? 1000.w : double.infinity),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Manage Existing Coupons',
-                      style: TextStyle(
-                          fontSize: 28.sp, fontWeight: FontWeight.bold)),
+                  Text('Manage Existing Coupons', style: TextStyle(fontSize: 28.sp, fontWeight: FontWeight.bold)),
                   SizedBox(height: 24.h),
-                  Expanded(
-                    child: allCoupons.isEmpty
-                        ? Center(
-                            child: Text('No coupons created yet.',
-                                style: TextStyle(
-                                    fontSize: 18.sp, color: Colors.grey[600])))
-                        : ListView.builder(
-                            itemCount: allCoupons.length,
-                            itemBuilder: (context, index) {
-                              final coupon = allCoupons[index];
-                              return Card(
-                                margin: EdgeInsets.symmetric(
-                                    vertical: 8.h, horizontal: 4.w),
-                                elevation: 2,
-                                child: Padding(
-                                  padding: EdgeInsets.all(16.w),
-                                  child: Row(
-                                    children: [
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            Text(coupon.title,
-                                                style: TextStyle(
-                                                    fontSize: 20.sp,
-                                                    fontWeight:
-                                                        FontWeight.bold)),
-                                            SizedBox(height: 4.h),
-                                            Text(
-                                                '${coupon.discount.toStringAsFixed(0)}% Off - ${coupon.category.toString().split('.').last.capitalize()}',
-                                                style: TextStyle(
-                                                    fontSize: 16.sp,
-                                                    color: Colors.grey[700])),
-                                            SizedBox(height: 4.h),
-                                            Text(
-                                                'Valid until: ${coupon.formattedValidUntil}',
-                                                style: TextStyle(
-                                                    fontSize: 14.sp,
-                                                    color: Colors.grey[600])),
-                                            SizedBox(height: 4.h),
-                                            Text(
-                                                'Used by: ${coupon.usedBy.length} users',
-                                                style: TextStyle(
-                                                    fontSize: 14.sp,
-                                                    color: Colors.grey[600])),
-                                            SizedBox(height: 4.h),
-                                            Text(
-                                                'Single Use: ${coupon.isSingleUse ? 'Yes' : 'No'}',
-                                                style: TextStyle(
-                                                    fontSize: 14.sp,
-                                                    color: Colors.grey[600])),
-                                          ],
-                                        ),
-                                      ),
-                                      SizedBox(width: 16.w),
-                                      Column(
+                  allCoupons.isEmpty
+                      ? Center(child: Text('No coupons created yet.', style: TextStyle(fontSize: 18.sp, color: Colors.grey[600])))
+                      : ListView.builder(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          itemCount: allCoupons.length,
+                          itemBuilder: (context, index) {
+                            final coupon = allCoupons[index];
+                            return Card(
+                              margin: EdgeInsets.symmetric(vertical: 8.h, horizontal: 4.w),
+                              // Card theme is applied globally, no need for elevation/shape here
+                              child: Padding(
+                                padding: EdgeInsets.all(16.w),
+                                child: Row(
+                                  children: [
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
                                         children: [
-                                          Switch(
-                                            value: coupon.isActive,
-                                            onChanged: (bool value) {
-                                              couponProvider.updateCouponStatus(
-                                                  coupon, value);
-                                            },
-                                            activeColor: Colors.green,
-                                          ),
+                                          Text(coupon.title, style: TextStyle(fontSize: 20.sp, fontWeight: FontWeight.bold, color: colorScheme.onSurface)),
+                                          SizedBox(height: 4.h),
                                           Text(
-                                              coupon.isActive
-                                                  ? 'Active'
-                                                  : 'Inactive',
-                                              style:
-                                                  TextStyle(fontSize: 12.sp)),
+                                            '${coupon.discount.toStringAsFixed(0)}% Off - ${coupon.category.toString().split('.').last}',
+                                            style: TextStyle(fontSize: 16.sp, color: colorScheme.onSurface.withOpacity(0.7)),
+                                          ),
+                                          SizedBox(height: 4.h),
+                                          Text('Valid until: ${coupon.formattedValidUntil}', style: TextStyle(fontSize: 14.sp, color: colorScheme.onSurface.withOpacity(0.6))),
+                                          SizedBox(height: 4.h),
+                                          Text('Used by: ${coupon.usedBy.length} users', style: TextStyle(fontSize: 14.sp, color: colorScheme.onSurface.withOpacity(0.6))),
+                                          SizedBox(height: 4.h),
+                                          Text('Single Use: ${coupon.isSingleUse ? 'Yes' : 'No'}', style: TextStyle(fontSize: 14.sp, color: colorScheme.onSurface.withOpacity(0.6))),
                                         ],
                                       ),
-                                      SizedBox(width: 16.w),
-                                      IconButton(
-                                        icon: Icon(Icons.barcode_reader,
-                                            size: 28.sp,
-                                            color: Colors.blueGrey[700]),
-                                        tooltip: 'Show Barcode',
-                                        onPressed: () {
-                                          showDialog(
-                                            context: context,
-                                            builder: (context) => AlertDialog(
-                                              title: Text(
-                                                  'Barcode for ${coupon.title}',
-                                                  style: TextStyle(
-                                                      fontSize: 20.sp)),
-                                              content: BarcodeDisplay(
-                                                  barcodeData:
-                                                      coupon.barcodeData),
-                                              actions: [
-                                                TextButton(
-                                                  onPressed: () =>
-                                                      Navigator.of(context)
-                                                          .pop(),
-                                                  child: Text('Close',
-                                                      style: TextStyle(
-                                                          fontSize: 16.sp)),
-                                                ),
-                                              ],
-                                            ),
-                                          );
-                                        },
-                                      ),
-                                      SizedBox(width: 8.w),
-                                      IconButton(
-                                        icon: Icon(Icons.delete,
-                                            size: 28.sp,
-                                            color: Colors.red[700]),
-                                        tooltip: 'Delete Coupon',
-                                        onPressed: () {
-                                          showDialog(
-                                            context: context,
-                                            builder: (context) => AlertDialog(
-                                              title: Text('Confirm Delete',
-                                                  style: TextStyle(
-                                                      fontSize: 20.sp)),
-                                              content: Text(
-                                                  'Are you sure you want to delete "${coupon.title}"?',
-                                                  style: TextStyle(
-                                                      fontSize: 16.sp)),
-                                              actions: [
-                                                TextButton(
-                                                  onPressed: () =>
-                                                      Navigator.of(context)
-                                                          .pop(),
-                                                  child: Text('Cancel',
-                                                      style: TextStyle(
-                                                          fontSize: 16.sp)),
-                                                ),
-                                                ElevatedButton(
-                                                  onPressed: () {
-                                                    couponProvider.deleteCoupon(
-                                                        coupon.id);
-                                                    Navigator.of(context).pop();
-                                                  },
-                                                  style:
-                                                      ElevatedButton.styleFrom(
-                                                          backgroundColor:
-                                                              Colors.red),
-                                                  child: Text('Delete',
-                                                      style: TextStyle(
-                                                          fontSize: 16.sp)),
-                                                ),
-                                              ],
-                                            ),
-                                          );
-                                        },
-                                      ),
-                                    ],
-                                  ),
+                                    ),
+                                    SizedBox(width: 16.w),
+                                    Column(
+                                      children: [
+                                        Switch(
+                                          value: coupon.isActive,
+                                          onChanged: (bool value) {
+                                            couponProvider.updateCouponStatus(coupon, value);
+                                          },
+                                          activeColor: Colors.green,
+                                        ),
+                                        Text(coupon.isActive ? 'Active' : 'Inactive', style: TextStyle(fontSize: 12.sp, color: colorScheme.onSurface.withOpacity(0.7))),
+                                      ],
+                                    ),
+                                    SizedBox(width: 16.w),
+                                    IconButton(
+                                      icon: Icon(Icons.qr_code_2, size: 28.sp, color: colorScheme.primary), // Changed to qr_code_2 for better icon
+                                      tooltip: 'Show Barcode',
+                                      onPressed: () {
+                                        showDialog(
+                                          context: context,
+                                          builder: (context) => AlertDialog(
+                                            title: Text('Barcode for ${coupon.title}', style: TextStyle(fontSize: 20.sp)),
+                                            content: BarcodeDisplay(barcodeData: coupon.barcodeData),
+                                            actions: [
+                                              TextButton(
+                                                onPressed: () => Navigator.of(context).pop(),
+                                                child: Text('Close', style: TextStyle(fontSize: 16.sp)),
+                                              ),
+                                            ],
+                                          ),
+                                        );
+                                      },
+                                    ),
+                                    SizedBox(width: 8.w),
+                                    IconButton(
+                                      icon: Icon(Icons.delete_outline, size: 28.sp, color: colorScheme.error), // Changed to delete_outline
+                                      tooltip: 'Delete Coupon',
+                                      onPressed: () {
+                                        showDialog(
+                                          context: context,
+                                          builder: (context) => AlertDialog(
+                                            title: Text('Confirm Delete', style: TextStyle(fontSize: 20.sp)),
+                                            content: Text('Are you sure you want to delete "${coupon.title}"?', style: TextStyle(fontSize: 16.sp)),
+                                            actions: [
+                                              TextButton(
+                                                onPressed: () => Navigator.of(context).pop(),
+                                                child: Text('Cancel', style: TextStyle(fontSize: 16.sp)),
+                                              ),
+                                              ElevatedButton(
+                                                onPressed: () {
+                                                  couponProvider.deleteCoupon(coupon.id);
+                                                  Navigator.of(context).pop();
+                                                },
+                                                style: ElevatedButton.styleFrom(backgroundColor: colorScheme.error),
+                                                child: Text('Delete', style: TextStyle(fontSize: 16.sp, color: colorScheme.onError)),
+                                              ),
+                                            ],
+                                          ),
+                                        );
+                                      },
+                                    ),
+                                  ],
                                 ),
-                              );
-                            },
-                          ),
-                  ),
+                              ),
+                            );
+                          },
+                        ),
                 ],
               ),
             ),
@@ -390,7 +619,6 @@ class _ManageCouponsTab extends StatelessWidget {
 
 class _CreateCouponTab extends StatefulWidget {
   const _CreateCouponTab();
-
   @override
   State<_CreateCouponTab> createState() => _CreateCouponTabState();
 }
@@ -428,15 +656,10 @@ class _CreateCouponTabState extends State<_CreateCouponTab> {
 
   void _createCoupon() async {
     if (_formKey.currentState!.validate()) {
-      final couponProvider =
-          Provider.of<CouponProvider>(context, listen: false);
-      final authProvider = Provider.of<AppAuthProvider.AuthProvider>(context,
-          listen: false); // <--- Changed this line
-
+      final couponProvider = Provider.of<CouponProvider>(context, listen: false);
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
       final String? currentUserId = authProvider.appUser?.uid;
-      dev.log(
-          'DEBUG: _CreateCouponTabState - Attempting to create coupon with createdByUid: $currentUserId'); // Added logging
-
+      dev.log('DEBUG: _CreateCouponTabState - Attempting to create coupon with createdByUid: $currentUserId');
       await couponProvider.createCoupon(
         title: _titleController.text,
         description: _descriptionController.text,
@@ -444,7 +667,7 @@ class _CreateCouponTabState extends State<_CreateCouponTab> {
         category: _selectedCategory,
         validUntil: _selectedDate,
         isSingleUse: _isSingleUse,
-        createdByUid: currentUserId, // Pass the current user's UID
+        createdByUid: currentUserId,
       );
       // Clear form
       _titleController.clear();
@@ -453,7 +676,7 @@ class _CreateCouponTabState extends State<_CreateCouponTab> {
       setState(() {
         _selectedCategory = CouponCategory.food;
         _selectedDate = DateTime.now().add(const Duration(days: 30));
-        _isSingleUse = false; // Reset single use checkbox
+        _isSingleUse = false;
       });
     }
   }
@@ -461,28 +684,25 @@ class _CreateCouponTabState extends State<_CreateCouponTab> {
   @override
   Widget build(BuildContext context) {
     final couponProvider = Provider.of<CouponProvider>(context);
+    final ColorScheme colorScheme = Theme.of(context).colorScheme;
+
     return SingleChildScrollView(
       padding: EdgeInsets.all(24.w),
       child: Center(
         child: ConstrainedBox(
-          constraints:
-              BoxConstraints(maxWidth: 600.w), // Max width for form on web
+          constraints: BoxConstraints(maxWidth: 600.w),
           child: Form(
             key: _formKey,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Create New Coupon',
-                    style: TextStyle(
-                        fontSize: 28.sp, fontWeight: FontWeight.bold)),
+                Text('Create New Coupon', style: TextStyle(fontSize: 28.sp, fontWeight: FontWeight.bold)),
                 SizedBox(height: 24.h),
                 TextFormField(
                   controller: _titleController,
                   decoration: InputDecoration(
                     labelText: 'Coupon Title',
                     hintText: 'e.g., 20% Off Spa Treatment',
-                    contentPadding:
-                        EdgeInsets.symmetric(vertical: 12.h, horizontal: 16.w),
                   ),
                   style: TextStyle(fontSize: 16.sp),
                   validator: (value) {
@@ -498,10 +718,7 @@ class _CreateCouponTabState extends State<_CreateCouponTab> {
                   maxLines: 3,
                   decoration: InputDecoration(
                     labelText: 'Description',
-                    hintText:
-                        'e.g., Enjoy a relaxing spa session with 20% discount.',
-                    contentPadding:
-                        EdgeInsets.symmetric(vertical: 12.h, horizontal: 16.w),
+                    hintText: 'e.g., Enjoy a relaxing spa session with 20% discount.',
                   ),
                   style: TextStyle(fontSize: 16.sp),
                   validator: (value) {
@@ -518,17 +735,13 @@ class _CreateCouponTabState extends State<_CreateCouponTab> {
                   decoration: InputDecoration(
                     labelText: 'Discount Percentage (%)',
                     hintText: 'e.g., 20',
-                    contentPadding:
-                        EdgeInsets.symmetric(vertical: 12.h, horizontal: 16.w),
                   ),
                   style: TextStyle(fontSize: 16.sp),
                   validator: (value) {
                     if (value == null || value.isEmpty) {
                       return 'Please enter a discount';
                     }
-                    if (double.tryParse(value) == null ||
-                        double.parse(value) <= 0 ||
-                        double.parse(value) > 100) {
+                    if (double.tryParse(value) == null || double.parse(value) <= 0 || double.parse(value) > 100) {
                       return 'Please enter a valid percentage (1-100)';
                     }
                     return null;
@@ -539,16 +752,12 @@ class _CreateCouponTabState extends State<_CreateCouponTab> {
                   value: _selectedCategory,
                   decoration: InputDecoration(
                     labelText: 'Category',
-                    contentPadding:
-                        EdgeInsets.symmetric(vertical: 12.h, horizontal: 16.w),
                   ),
-                  style: TextStyle(fontSize: 16.sp, color: Colors.black),
+                  style: TextStyle(fontSize: 16.sp, color: colorScheme.onSurface),
                   items: CouponCategory.values.map((category) {
                     return DropdownMenuItem(
                       value: category,
-                      child: Text(
-                          category.toString().split('.').last.capitalize(),
-                          style: TextStyle(fontSize: 16.sp)),
+                      child: Text(category.toString(), style: TextStyle(fontSize: 16.sp)),
                     );
                   }).toList(),
                   onChanged: (value) {
@@ -559,12 +768,8 @@ class _CreateCouponTabState extends State<_CreateCouponTab> {
                 ),
                 SizedBox(height: 16.h),
                 CheckboxListTile(
-                  title: Text('Single Use Coupon',
-                      style: TextStyle(fontSize: 16.sp)),
-                  subtitle: Text(
-                      'If checked, this coupon will expire for everyone after the first redemption.',
-                      style:
-                          TextStyle(fontSize: 14.sp, color: Colors.grey[600])),
+                  title: Text('Single Use Coupon', style: TextStyle(fontSize: 16.sp)),
+                  subtitle: Text('If checked, this coupon will expire for everyone after the first redemption.', style: TextStyle(fontSize: 14.sp, color: Colors.grey[600])),
                   value: _isSingleUse,
                   onChanged: (bool? value) {
                     setState(() {
@@ -581,25 +786,31 @@ class _CreateCouponTabState extends State<_CreateCouponTab> {
                       child: InputDecorator(
                         decoration: InputDecoration(
                           labelText: 'Valid Until',
-                          contentPadding: EdgeInsets.symmetric(
-                              vertical: 12.h, horizontal: 16.w),
+                          filled: true,
+                          fillColor: colorScheme.surface, // Use surface color for display
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(8.0),
+                            borderSide: BorderSide(color: colorScheme.outline, width: 1),
                           ),
-                          filled: true,
-                          fillColor: Colors.grey[100],
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8.0),
+                            borderSide: BorderSide(color: colorScheme.outline, width: 1),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8.0),
+                            borderSide: BorderSide(color: colorScheme.secondary, width: 2),
+                          ),
                         ),
                         child: Text(
                           DateFormat('MMM dd, yyyy').format(_selectedDate),
-                          style: TextStyle(fontSize: 16.sp),
+                          style: TextStyle(fontSize: 16.sp, color: colorScheme.onSurface),
                         ),
                       ),
                     ),
                     SizedBox(width: 16.w),
                     ElevatedButton(
                       onPressed: () => _selectDate(context),
-                      child: Text('Select Date',
-                          style: TextStyle(fontSize: 16.sp)),
+                      child: Text('Select Date', style: TextStyle(fontSize: 16.sp)),
                     ),
                   ],
                 ),
@@ -608,9 +819,8 @@ class _CreateCouponTabState extends State<_CreateCouponTab> {
                   child: ElevatedButton(
                     onPressed: couponProvider.isLoading ? null : _createCoupon,
                     child: couponProvider.isLoading
-                        ? const CircularProgressIndicator(color: Colors.white)
-                        : Text('Create Coupon',
-                            style: TextStyle(fontSize: 18.sp)),
+                        ? CircularProgressIndicator(color: colorScheme.onPrimary)
+                        : Text('Create Coupon', style: TextStyle(fontSize: 18.sp)),
                   ),
                 ),
               ],
@@ -624,7 +834,6 @@ class _CreateCouponTabState extends State<_CreateCouponTab> {
 
 class _ScanCouponTab extends StatefulWidget {
   const _ScanCouponTab({super.key});
-
   @override
   State<_ScanCouponTab> createState() => _ScanCouponTabState();
 }
@@ -643,18 +852,14 @@ class _ScanCouponTabState extends State<_ScanCouponTab> {
   void _handleScanResult(String barcodeData) {
     setState(() {
       _scannedBarcodeData = barcodeData;
-      _foundCoupon = Provider.of<CouponProvider>(context, listen: false)
-          .getCouponByBarcodeData(barcodeData);
+      _foundCoupon = Provider.of<CouponProvider>(context, listen: false).getCouponByBarcodeData(barcodeData);
     });
   }
 
   void _redeemScannedCoupon() async {
     if (_foundCoupon != null && _userIdController.text.isNotEmpty) {
-      final couponProvider =
-          Provider.of<CouponProvider>(context, listen: false);
-      await couponProvider.redeemCoupon(
-          _foundCoupon!.id, _userIdController.text.trim());
-      // Clear state after redemption attempt
+      final couponProvider = Provider.of<CouponProvider>(context, listen: false);
+      await couponProvider.redeemCoupon(_foundCoupon!.id, _userIdController.text.trim());
       setState(() {
         _scannedBarcodeData = null;
         _foundCoupon = null;
@@ -667,125 +872,109 @@ class _ScanCouponTabState extends State<_ScanCouponTab> {
 
   @override
   Widget build(BuildContext context) {
-    final authProvider = Provider.of<AppAuthProvider.AuthProvider>(
-        context); // <--- Changed this line
     final couponProvider = Provider.of<CouponProvider>(context);
+    final ColorScheme colorScheme = Theme.of(context).colorScheme;
 
-    return Padding(
+    return SingleChildScrollView(
       padding: EdgeInsets.all(24.w),
       child: Center(
         child: ConstrainedBox(
-          constraints:
-              BoxConstraints(maxWidth: 600.w), // Max width for content on web
-          child:
-              Column(crossAxisAlignment: CrossAxisAlignment.center, children: [
-            Text('Scan Coupon for Redemption',
-                style: TextStyle(fontSize: 28.sp, fontWeight: FontWeight.bold)),
-            SizedBox(height: 24.h),
-            ElevatedButton.icon(
-              onPressed: () async {
-                // Navigate to the scanner screen and wait for a result
-                final result = await context.push<String>('/barcode_scanner');
-                if (result != null) {
-                  _handleScanResult(result);
-                }
-              },
-              icon: Icon(Icons.qr_code_scanner, size: 24.sp),
-              label: Text('Open Barcode Scanner',
-                  style: TextStyle(fontSize: 18.sp)),
-              style: ElevatedButton.styleFrom(
-                padding: EdgeInsets.symmetric(horizontal: 30.w, vertical: 15.h),
-              ),
-            ),
-            SizedBox(height: 32.h),
-            if (_scannedBarcodeData != null) ...[
-              Text('Scanned Barcode Data:',
-                  style:
-                      TextStyle(fontSize: 18.sp, fontWeight: FontWeight.bold)),
-              SizedBox(height: 8.h),
-              Text(_scannedBarcodeData!,
-                  style:
-                      TextStyle(fontSize: 16.sp, color: Colors.blueGrey[700])),
+          constraints: BoxConstraints(maxWidth: 600.w),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Text('Scan Coupon for Redemption', style: TextStyle(fontSize: 28.sp, fontWeight: FontWeight.bold)),
               SizedBox(height: 24.h),
-              if (_foundCoupon != null) ...[
-                Text('Found Coupon:',
-                    style: TextStyle(
-                        fontSize: 18.sp, fontWeight: FontWeight.bold)),
+              ElevatedButton.icon(
+                onPressed: () async {
+                  final result = await context.push<String>('/barcode_scanner');
+                  if (result != null) {
+                    _handleScanResult(result);
+                  }
+                },
+                icon: Icon(Icons.qr_code_scanner, size: 24.sp),
+                label: Text('Open Barcode Scanner', style: TextStyle(fontSize: 18.sp)),
+                style: ElevatedButton.styleFrom(
+                  padding: EdgeInsets.symmetric(horizontal: 30.w, vertical: 15.h),
+                ),
+              ),
+              SizedBox(height: 32.h),
+              if (_scannedBarcodeData != null) ...[
+                Text('Scanned Barcode Data:', style: TextStyle(fontSize: 18.sp, fontWeight: FontWeight.bold)),
                 SizedBox(height: 8.h),
-                Card(
-                  elevation: 4,
-                  margin: EdgeInsets.zero,
-                  child: Padding(
-                    padding: EdgeInsets.all(16.w),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(_foundCoupon!.title,
-                            style: TextStyle(
-                                fontSize: 20.sp, fontWeight: FontWeight.bold)),
-                        SizedBox(height: 4.h),
-                        Text(
-                            '${_foundCoupon!.discount.toStringAsFixed(0)}% Off - ${_foundCoupon!.category.toString().split('.').last.capitalize()}',
-                            style: TextStyle(
-                                fontSize: 16.sp, color: Colors.grey[700])),
-                        SizedBox(height: 4.h),
-                        Text(
-                            'Valid until: ${_foundCoupon!.formattedValidUntil}',
-                            style: TextStyle(
-                                fontSize: 14.sp, color: Colors.grey[600])),
-                        SizedBox(height: 4.h),
-                        Text('Active: ${_foundCoupon!.isActive ? 'Yes' : 'No'}',
-                            style: TextStyle(
-                                fontSize: 14.sp, color: Colors.grey[600])),
-                        SizedBox(height: 4.h),
-                        Text(
-                            'Single Use: ${_foundCoupon!.isSingleUse ? 'Yes' : 'No'}',
-                            style: TextStyle(
-                                fontSize: 14.sp, color: Colors.grey[600])),
-                        SizedBox(height: 4.h),
-                        Text('Used by: ${_foundCoupon!.usedBy.length} users',
-                            style: TextStyle(
-                                fontSize: 14.sp, color: Colors.grey[600])),
-                      ],
+                Text(_scannedBarcodeData!, style: TextStyle(fontSize: 16.sp, color: colorScheme.primary)),
+                SizedBox(height: 24.h),
+                if (_foundCoupon != null) ...[
+                  Text('Found Coupon:', style: TextStyle(fontSize: 18.sp, fontWeight: FontWeight.bold)),
+                  SizedBox(height: 8.h),
+                  Card(
+                    // Card theme is applied globally
+                    margin: EdgeInsets.zero,
+                    child: Padding(
+                      padding: EdgeInsets.all(16.w),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(_foundCoupon!.title, style: TextStyle(fontSize: 20.sp, fontWeight: FontWeight.bold, color: colorScheme.onSurface)),
+                          SizedBox(height: 4.h),
+                          Text(
+                            '${_foundCoupon!.discount.toStringAsFixed(0)}% Off - ${_foundCoupon!.category.toString().split('.').last}',
+                            style: TextStyle(fontSize: 16.sp, color: colorScheme.onSurface.withOpacity(0.7)),
+                          ),
+                          SizedBox(height: 4.h),
+                          Text('Valid until: ${_foundCoupon!.formattedValidUntil}', style: TextStyle(fontSize: 14.sp, color: colorScheme.onSurface.withOpacity(0.6))),
+                          SizedBox(height: 4.h),
+                          Text('Active: ${_foundCoupon!.isActive ? 'Yes' : 'No'}', style: TextStyle(fontSize: 14.sp, color: colorScheme.onSurface.withOpacity(0.6))),
+                          SizedBox(height: 4.h),
+                          Text('Single Use: ${_foundCoupon!.isSingleUse ? 'Yes' : 'No'}', style: TextStyle(fontSize: 14.sp, color: colorScheme.onSurface.withOpacity(0.6))),
+                          SizedBox(height: 4.h),
+                          Text('Used by: ${_foundCoupon!.usedBy.length} users', style: TextStyle(fontSize: 14.sp, color: colorScheme.onSurface.withOpacity(0.6))),
+                        ],
+                      ),
                     ),
                   ),
-                ),
-                SizedBox(height: 24.h),
-                TextFormField(
-                  controller: _userIdController,
-                  decoration: InputDecoration(
-                    labelText: 'User ID (UID) to redeem for',
-                    hintText: 'e.g., Firebase user UID',
-                    prefixIcon: Icon(Icons.person),
+                  SizedBox(height: 24.h),
+                  TextFormField(
+                    controller: _userIdController,
+                    decoration: InputDecoration(
+                      labelText: 'User ID (UID) to redeem for',
+                      hintText: 'e.g., Firebase user UID',
+                      prefixIcon: Icon(Icons.person, color: colorScheme.onSurface.withOpacity(0.6)),
+                    ),
+                    style: TextStyle(fontSize: 16.sp),
                   ),
-                  style: TextStyle(fontSize: 16.sp),
-                ),
-                SizedBox(height: 24.h),
-                ElevatedButton.icon(
-                  onPressed:
-                      couponProvider.isLoading ? null : _redeemScannedCoupon,
-                  icon: Icon(Icons.check_circle, size: 24.sp),
-                  label: couponProvider.isLoading
-                      ? const CircularProgressIndicator(color: Colors.white)
-                      : Text('Redeem Coupon',
-                          style: TextStyle(fontSize: 18.sp)),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.green[700],
-                    padding:
-                        EdgeInsets.symmetric(horizontal: 30.w, vertical: 15.h),
+                  SizedBox(height: 24.h),
+                  ElevatedButton.icon(
+                    onPressed: couponProvider.isLoading ? null : _redeemScannedCoupon,
+                    icon: Icon(Icons.check_circle, size: 24.sp),
+                    label: couponProvider.isLoading
+                        ? CircularProgressIndicator(color: colorScheme.onPrimary)
+                        : Text('Redeem Coupon', style: TextStyle(fontSize: 18.sp)),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green[700],
+                      padding: EdgeInsets.symmetric(horizontal: 30.w, vertical: 15.h),
+                    ),
                   ),
-                ),
-              ] else ...[
-                Text(
-                  'No coupon found for this barcode data.',
-                  style: TextStyle(fontSize: 18.sp, color: Colors.red[700]),
-                  textAlign: TextAlign.center,
-                ),
+                ] else ...[
+                  Text(
+                    'No coupon found for this barcode data.',
+                    style: TextStyle(fontSize: 18.sp, color: colorScheme.error),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
               ],
             ],
-          ]),
+          ),
         ),
       ),
     );
+  }
+}
+
+// Assuming this extension is defined somewhere accessible, e.g., in a utils file or directly in the main file.
+extension StringExtension on String {
+  String capitalize() {
+    if (isEmpty) return this;
+    return "${this[0].toUpperCase()}${substring(1)}";
   }
 }
