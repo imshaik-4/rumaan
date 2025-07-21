@@ -7,6 +7,7 @@ import 'package:uuid/uuid.dart';
 import '../models/coupon.dart';
 import '../models/app_user.dart'; // Import AppUser for user role check
 
+
 class CouponProvider with ChangeNotifier {
   final FirestoreService _firestoreService = FirestoreService();
   List<Coupon> _allCoupons = [];
@@ -25,8 +26,10 @@ class CouponProvider with ChangeNotifier {
   List<Coupon> getAvailableCoupons(AppUser? user) {
     if (user == null) return [];
     return _allCoupons.where((coupon) {
-      // Coupon is active and not used by the current user
-      return coupon.isActive && !coupon.usedBy.contains(user.uid) && coupon.validUntil.isAfter(DateTime.now());
+      // Coupon is active, not used by the current user, and not expired
+      return coupon.isActive &&
+             !coupon.usedBy.contains(user.uid) &&
+             coupon.validUntil.isAfter(DateTime.now());
     }).toList();
   }
 
@@ -44,7 +47,8 @@ class CouponProvider with ChangeNotifier {
     required double discount,
     required CouponCategory category,
     required DateTime validUntil,
-    required bool isSingleUse, // Add this line
+    required bool isSingleUse,
+    String? createdByUid, // Add this line
   }) async {
     _isLoading = true;
     notifyListeners();
@@ -56,10 +60,11 @@ class CouponProvider with ChangeNotifier {
       discount: discount,
       category: category,
       validUntil: validUntil,
-      barcodeData: id,
+      barcodeData: id, // Barcode data is the coupon ID
       isActive: true,
       usedBy: [],
-      isSingleUse: isSingleUse, // Add this line
+      isSingleUse: isSingleUse,
+      createdByUid: createdByUid, // Add this line
     );
     await _firestoreService.createCoupon(newCoupon);
     _isLoading = false;
@@ -69,8 +74,8 @@ class CouponProvider with ChangeNotifier {
   Future<void> updateCouponStatus(Coupon coupon, bool isActive) async {
     _isLoading = true;
     notifyListeners();
-    coupon.isActive = isActive;
-    await _firestoreService.updateCoupon(coupon);
+    coupon.isActive = isActive; // Update the local object
+    await _firestoreService.updateCoupon(coupon); // Persist to Firestore
     _isLoading = false;
     notifyListeners();
   }
@@ -94,8 +99,13 @@ class CouponProvider with ChangeNotifier {
         DocumentSnapshot couponDoc = await transaction.get(couponRef);
         DocumentSnapshot userDoc = await transaction.get(userRef);
 
-        if (!couponDoc.exists || !userDoc.exists) {
-          throw Exception("Coupon or User does not exist!");
+        if (!couponDoc.exists) {
+          Fluttertoast.showToast(msg: "Coupon does not exist!");
+          return;
+        }
+        if (!userDoc.exists) {
+          Fluttertoast.showToast(msg: "User does not exist!");
+          return;
         }
 
         Coupon coupon = Coupon.fromFirestore(couponDoc);
@@ -106,18 +116,28 @@ class CouponProvider with ChangeNotifier {
           return;
         }
 
+        if (!coupon.isActive) {
+          Fluttertoast.showToast(msg: 'This coupon is inactive.');
+          return;
+        }
+
+        if (coupon.validUntil.isBefore(DateTime.now())) {
+          Fluttertoast.showToast(msg: 'This coupon has expired.');
+          return;
+        }
+
         // Add user to usedBy list
         List<String> updatedUsedBy = List.from(coupon.usedBy)..add(userId);
         transaction.update(couponRef, {'usedBy': updatedUsedBy});
 
         // If it's a single-use coupon and this is the first redemption, deactivate it globally
-        if (coupon.isSingleUse && coupon.usedBy.isEmpty) { // Check if it's the first use
+        // Or if it's a single-use coupon and it's now used by at least one person, deactivate it.
+        if (coupon.isSingleUse) {
           transaction.update(couponRef, {'isActive': false});
         }
 
-        // Add coupon to user's redeemedCoupons list
-        List<String> updatedRedeemedCoupons = List.from(appUser.redeemedCoupons)..add(couponId);
-        transaction.update(userRef, {'redeemedCoupons': updatedRedeemedCoupons});
+        // Add coupon to user's redeemedCoupons list (for user's personal history)
+        transaction.update(userRef, {'redeemedCoupons': FieldValue.arrayUnion([couponId])});
 
         Fluttertoast.showToast(msg: 'Coupon redeemed successfully!');
       });
@@ -126,6 +146,15 @@ class CouponProvider with ChangeNotifier {
     } finally {
       _isLoading = false;
       notifyListeners();
+    }
+  }
+
+  // New method to find a coupon by barcode data
+  Coupon? getCouponByBarcodeData(String barcodeData) {
+    try {
+      return _allCoupons.firstWhere((coupon) => coupon.barcodeData == barcodeData);
+    } catch (e) {
+      return null; // Coupon not found
     }
   }
 }

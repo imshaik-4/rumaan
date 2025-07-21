@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:rumaan/firestore_service.dart';
+import 'dart:developer' as dev; // Import for dev.log
 
 import '../models/app_user.dart';
 import '../services/auth_service.dart';
+
 
 
 class AuthProvider with ChangeNotifier {
@@ -29,12 +31,26 @@ class AuthProvider with ChangeNotifier {
       _currentUser = user;
       if (user != null) {
         _appUser = await _firestoreService.getUser(user.uid);
+        if (_appUser == null) {
+          _appUser = AppUser(
+            uid: user.uid,
+            email: user.email,
+            phoneNumber: user.phoneNumber,
+            role: UserRole.customer, // Default role for new sign-ups
+          );
+          await _firestoreService.createUser(_appUser!.uid, _appUser!.toFirestore());
+        }
       } else {
         // If Firebase user logs out, clear our app user state
-        _appUser = null;
+        // Only clear if the current _appUser is NOT a hardcoded user.
+        // This prevents hardcoded users from being immediately logged out by authStateChanges.
+        if (_appUser != null && !(_appUser!.uid == 'hardcoded_admin_id_123' || _appUser!.uid == 'hardcoded_receptionist_id_456')) {
+          _appUser = null;
+        }
       }
       _isLoading = false;
       notifyListeners();
+      dev.log('DEBUG: AuthProvider - Auth state changed. Current user UID: ${_appUser?.uid}, Role: ${_appUser?.role}');
     });
   }
 
@@ -86,17 +102,39 @@ class AuthProvider with ChangeNotifier {
   }
 
   // NEW: Method to set a hardcoded admin user (NOT SECURE FOR PRODUCTION)
-  void setHardcodedAdminUser() {
+  void setHardcodedAdminUser() async { // Made async
     _isLoading = true;
     notifyListeners();
     _currentUser = null; // No Firebase User for this
     _appUser = AppUser(
       uid: 'hardcoded_admin_id_123', // A unique ID for this hardcoded user
-      email: 'admin@rumanhotel.com',
+      email: 'admin@rumaanhotel.com',
       role: UserRole.admin,
     );
+    // Ensure the hardcoded user document exists in Firestore
+    await _firestoreService.createUser(_appUser!.uid, _appUser!.toFirestore());
     _isLoading = false;
     notifyListeners();
+    Fluttertoast.showToast(msg: 'Logged in as hardcoded admin.');
+    dev.log('DEBUG: AuthProvider - Hardcoded Admin set. UID: ${_appUser?.uid}, Role: ${_appUser?.role}');
+  }
+
+  // NEW: Method to set a hardcoded receptionist user (NOT SECURE FOR PRODUCTION)
+  void setHardcodedReceptionistUser() async { // Made async
+    _isLoading = true;
+    notifyListeners();
+    _currentUser = null; // No Firebase User for this
+    _appUser = AppUser(
+      uid: 'hardcoded_receptionist_id_456', // A unique ID for this hardcoded user
+      email: 'receptionist@rumaanhotel.com',
+      role: UserRole.receptionist,
+    );
+    // Ensure the hardcoded user document exists in Firestore
+    await _firestoreService.createUser(_appUser!.uid, _appUser!.toFirestore());
+    _isLoading = false;
+    notifyListeners();
+    Fluttertoast.showToast(msg: 'Logged in as hardcoded receptionist.');
+    dev.log('DEBUG: AuthProvider - Hardcoded Receptionist set. UID: ${_appUser?.uid}, Role: ${_appUser?.role}');
   }
 
   Future<void> signOut() async {

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:rumaan/firestore_service.dart';
 
 
+
 class AnalyticsProvider with ChangeNotifier {
   final FirestoreService _firestoreService = FirestoreService();
 

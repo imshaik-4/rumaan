@@ -39,11 +39,13 @@ class CouponCard extends StatelessWidget {
               style: TextStyle(fontSize: 28.sp, fontWeight: FontWeight.w900, color: Colors.green[700]),
             ),
             SizedBox(height: 8.h),
-            Text(
-              coupon.description,
-              style: TextStyle(fontSize: 16.sp, color: Colors.grey[700]),
-              maxLines: 2,
-             // overflow: Text.ellipsis,
+            Flexible( // Use Expanded to allow description to take available space
+              child: Text(
+                coupon.description,
+                style: TextStyle(fontSize: 16.sp, color: Colors.grey[700]),
+                maxLines: 3, // Allow up to 3 lines
+                overflow: TextOverflow.ellipsis,
+              ),
             ),
             SizedBox(height: 12.h),
             Row(
@@ -63,7 +65,7 @@ class CouponCard extends StatelessWidget {
                 ),
               ],
             ),
-            const Spacer(),
+            SizedBox(height: 12.h), // Add some space before buttons
             if (isRedeemable)
               Center(
                 child: ElevatedButton.icon(
@@ -112,6 +114,7 @@ class CouponCard extends StatelessWidget {
 
 extension StringExtension on String {
   String capitalize() {
+    if (isEmpty) return this;
     return "${this[0].toUpperCase()}${substring(1)}";
   }
 }

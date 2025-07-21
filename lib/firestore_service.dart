@@ -11,6 +11,7 @@ class FirestoreService {
   Future<void> createUser(String uid, Map<String, dynamic> userData) async {
     try {
       await _firestore.collection('users').doc(uid).set(userData, SetOptions(merge: true));
+      Fluttertoast.showToast(msg: 'User created successfully!'); // Added toast for consistency
     } catch (e) {
       Fluttertoast.showToast(msg: 'Error creating user: $e');
     }
@@ -31,9 +32,17 @@ class FirestoreService {
   Future<void> updateUser(String uid, Map<String, dynamic> data) async {
     try {
       await _firestore.collection('users').doc(uid).update(data);
+      Fluttertoast.showToast(msg: 'User updated successfully!'); // Added toast for consistency
     } catch (e) {
       Fluttertoast.showToast(msg: 'Error updating user: $e');
     }
+  }
+
+  // NEW: Get all users
+  Stream<List<AppUser>> getAllUsers() {
+    return _firestore.collection('users').snapshots().map((snapshot) {
+      return snapshot.docs.map((doc) => AppUser.fromFirestore(doc)).toList();
+    });
   }
 
   // Coupon operations
@@ -78,8 +87,4 @@ class FirestoreService {
   Stream<int> getActiveCouponsCount() {
     return _firestore.collection('coupons').where('isActive', isEqualTo: true).snapshots().map((snapshot) => snapshot.docs.length);
   }
-
-  // Note: Total logins and total savings would typically require Firebase Cloud Functions
-  // or more complex client-side aggregation/tracking. For simplicity, we'll omit them
-  // or derive them from existing data if possible.
 }

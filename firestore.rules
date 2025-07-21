@@ -1,25 +1,31 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Allow read for all users, write only for authenticated admins/receptionists
+
+    // Rule 1: Allow admin/receptionist to write to 'coupons' and 'users' if authenticated
+    // This rule applies to real Firebase authenticated users with the correct role in their user document.
     match /coupons/{couponId} {
-      allow read: if request.auth != null;
       allow write: if request.auth != null && (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'receptionist');
+      allow read: if true; // Anyone can read coupons
     }
 
-    // Allow read/write for analytics only for authenticated admins/receptionists
-    match /analytics/{docId} {
-      allow read: if request.auth != null && (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'receptionist');
-      allow write: if request.auth != null && (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'receptionist');
+    // Rule 2: Allow unauthenticated requests to create coupons IF createdByUid matches hardcoded admin/receptionist UIDs
+    // This rule is for your hardcoded test users.
+    match /coupons/{couponId} {
+      allow create: if request.auth == null && (request.resource.data.createdByUid == 'hardcoded_admin_id_123' || request.resource.data.createdByUid == 'hardcoded_receptionist_id_456');
     }
 
-    // User roles can be read by anyone (for role-based routing on client)
-    // Users can only create/update their own document, and only if they are authenticated
+    // Rule 3: Allow users to read and update their own user document
     match /users/{userId} {
-      allow read: if request.auth != null;
+      allow read, update: if request.auth != null && request.auth.uid == userId;
+      // Allow creation of user documents for new sign-ups (if not already existing)
       allow create: if request.auth != null && request.auth.uid == userId;
-      allow update: if request.auth != null && request.auth.uid == userId;
-      allow delete: if false; // No deletion of user documents
+    }
+
+    // Rule 4: Allow anyone to read user documents for analytics (e.g., total users count)
+    // Be cautious with this in a real app; consider more granular access.
+    match /users/{userId} {
+      allow read: if true;
     }
   }
 }

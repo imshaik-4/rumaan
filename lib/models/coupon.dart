@@ -25,7 +25,7 @@ class Coupon {
     required this.barcodeData,
     this.isActive = true,
     this.usedBy = const [],
-    required this.isSingleUse,
+    required this.isSingleUse, String? createdByUid,
   });
 
   factory Coupon.fromFirestore(DocumentSnapshot doc) {
