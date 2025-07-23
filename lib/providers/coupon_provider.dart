@@ -1,15 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:fluttertoast/fluttertoast.dart';
-import 'package:rumaan/firestore_service.dart';
 import 'package:uuid/uuid.dart';
-
 import '../models/coupon.dart';
-import '../models/app_user.dart'; // Import AppUser for user role check
-
+import '../models/app_user.dart';
 
 class CouponProvider with ChangeNotifier {
-  final FirestoreService _firestoreService = FirestoreService();
+  // Local storage for coupons (in a real app, you might use SharedPreferences or local database)
   List<Coupon> _allCoupons = [];
   bool _isLoading = false;
 
@@ -17,16 +13,62 @@ class CouponProvider with ChangeNotifier {
   bool get isLoading => _isLoading;
 
   CouponProvider() {
-    _firestoreService.getCoupons().listen((coupons) {
-      _allCoupons = coupons;
-      notifyListeners();
-    });
+    _initializeWithSampleData();
+  }
+
+  // Initialize with some sample coupons for testing
+  void _initializeWithSampleData() {
+    _allCoupons = [
+      Coupon(
+        id: const Uuid().v4(),
+        title: '20% Off Spa Treatment',
+        description: 'Enjoy a relaxing spa session with 20% discount on all treatments.',
+        discount: 20.0,
+        category: CouponCategory.spa,
+        validUntil: DateTime.now().add(const Duration(days: 30)),
+        barcodeData: 'SPA20OFF',
+        isActive: true,
+        usedBy: [],
+        isSingleUse: false,
+        createdByUid: 'admin',
+        createdAt: DateTime.now(),
+      ),
+      Coupon(
+        id: const Uuid().v4(),
+        title: '15% Off Restaurant',
+        description: 'Get 15% discount on all food items at our restaurant.',
+        discount: 15.0,
+        category: CouponCategory.food,
+        validUntil: DateTime.now().add(const Duration(days: 45)),
+        barcodeData: 'FOOD15OFF',
+        isActive: true,
+        usedBy: [],
+        isSingleUse: false,
+        createdByUid: 'admin',
+        createdAt: DateTime.now(),
+      ),
+      Coupon(
+        id: const Uuid().v4(),
+        title: '30% Off Room Upgrade',
+        description: 'Upgrade your room with 30% discount on premium rooms.',
+        discount: 30.0,
+        category: CouponCategory.room,
+        validUntil: DateTime.now().add(const Duration(days: 60)),
+        barcodeData: 'ROOM30OFF',
+        isActive: true,
+        usedBy: [],
+        isSingleUse: true,
+        createdByUid: 'admin',
+        createdAt: DateTime.now(),
+      ),
+    ];
+    notifyListeners();
   }
 
   List<Coupon> getAvailableCoupons(AppUser? user) {
     if (user == null) return [];
+    
     return _allCoupons.where((coupon) {
-      // Coupon is active, not used by the current user, and not expired
       return coupon.isActive &&
              !coupon.usedBy.contains(user.uid) &&
              coupon.validUntil.isAfter(DateTime.now());
@@ -35,8 +77,8 @@ class CouponProvider with ChangeNotifier {
 
   List<Coupon> getRedeemedCoupons(AppUser? user) {
     if (user == null) return [];
+    
     return _allCoupons.where((coupon) {
-      // Coupon is used by the current user
       return coupon.usedBy.contains(user.uid);
     }).toList();
   }
@@ -48,113 +90,142 @@ class CouponProvider with ChangeNotifier {
     required CouponCategory category,
     required DateTime validUntil,
     required bool isSingleUse,
-    String? createdByUid, // Add this line
+    String? createdByUid,
   }) async {
     _isLoading = true;
     notifyListeners();
-    final String id = const Uuid().v4();
-    final Coupon newCoupon = Coupon(
-      id: id,
-      title: title,
-      description: description,
-      discount: discount,
-      category: category,
-      validUntil: validUntil,
-      barcodeData: id, // Barcode data is the coupon ID
-      isActive: true,
-      usedBy: [],
-      isSingleUse: isSingleUse,
-      createdByUid: createdByUid, // Add this line
-    );
-    await _firestoreService.createCoupon(newCoupon);
-    _isLoading = false;
-    notifyListeners();
-  }
 
-  Future<void> updateCouponStatus(Coupon coupon, bool isActive) async {
-    _isLoading = true;
-    notifyListeners();
-    coupon.isActive = isActive; // Update the local object
-    await _firestoreService.updateCoupon(coupon); // Persist to Firestore
-    _isLoading = false;
-    notifyListeners();
-  }
-
-  Future<void> deleteCoupon(String couponId) async {
-    _isLoading = true;
-    notifyListeners();
-    await _firestoreService.deleteCoupon(couponId);
-    _isLoading = false;
-    notifyListeners();
-  }
-
-  Future<void> redeemCoupon(String couponId, String userId) async {
-    _isLoading = true;
-    notifyListeners();
     try {
-      final couponRef = FirebaseFirestore.instance.collection('coupons').doc(couponId);
-      final userRef = FirebaseFirestore.instance.collection('users').doc(userId);
+      // Simulate network delay
+      await Future.delayed(const Duration(milliseconds: 500));
 
-      await FirebaseFirestore.instance.runTransaction((transaction) async {
-        DocumentSnapshot couponDoc = await transaction.get(couponRef);
-        DocumentSnapshot userDoc = await transaction.get(userRef);
+      final String id = const Uuid().v4();
+      final Coupon newCoupon = Coupon(
+        id: id,
+        title: title,
+        description: description,
+        discount: discount,
+        category: category,
+        validUntil: validUntil,
+        barcodeData: id,
+        isActive: true,
+        usedBy: [],
+        isSingleUse: isSingleUse,
+        createdByUid: createdByUid,
+        createdAt: DateTime.now(),
+      );
 
-        if (!couponDoc.exists) {
-          Fluttertoast.showToast(msg: "Coupon does not exist!");
-          return;
-        }
-        if (!userDoc.exists) {
-          Fluttertoast.showToast(msg: "User does not exist!");
-          return;
-        }
-
-        Coupon coupon = Coupon.fromFirestore(couponDoc);
-        AppUser appUser = AppUser.fromFirestore(userDoc);
-
-        if (coupon.usedBy.contains(userId)) {
-          Fluttertoast.showToast(msg: 'Coupon already redeemed by this user.');
-          return;
-        }
-
-        if (!coupon.isActive) {
-          Fluttertoast.showToast(msg: 'This coupon is inactive.');
-          return;
-        }
-
-        if (coupon.validUntil.isBefore(DateTime.now())) {
-          Fluttertoast.showToast(msg: 'This coupon has expired.');
-          return;
-        }
-
-        // Add user to usedBy list
-        List<String> updatedUsedBy = List.from(coupon.usedBy)..add(userId);
-        transaction.update(couponRef, {'usedBy': updatedUsedBy});
-
-        // If it's a single-use coupon and this is the first redemption, deactivate it globally
-        // Or if it's a single-use coupon and it's now used by at least one person, deactivate it.
-        if (coupon.isSingleUse) {
-          transaction.update(couponRef, {'isActive': false});
-        }
-
-        // Add coupon to user's redeemedCoupons list (for user's personal history)
-        transaction.update(userRef, {'redeemedCoupons': FieldValue.arrayUnion([couponId])});
-
-        Fluttertoast.showToast(msg: 'Coupon redeemed successfully!');
-      });
+      _allCoupons.add(newCoupon);
+      print('Coupon created successfully: ${newCoupon.title}');
+      Fluttertoast.showToast(msg: 'Coupon "${newCoupon.title}" created successfully!');
+      
     } catch (e) {
-      Fluttertoast.showToast(msg: 'Error redeeming coupon: $e');
+      print('Error creating coupon: $e');
+      Fluttertoast.showToast(msg: 'Error creating coupon: ${e.toString()}');
     } finally {
       _isLoading = false;
       notifyListeners();
     }
   }
 
-  // New method to find a coupon by barcode data
+  Future<void> updateCouponStatus(Coupon coupon, bool isActive) async {
+    _isLoading = true;
+    notifyListeners();
+
+    try {
+      await Future.delayed(const Duration(milliseconds: 300));
+      
+      final index = _allCoupons.indexWhere((c) => c.id == coupon.id);
+      if (index != -1) {
+        _allCoupons[index] = _allCoupons[index].copyWith(isActive: isActive);
+        Fluttertoast.showToast(msg: 'Coupon status updated successfully!');
+      }
+    } catch (e) {
+      print('Error updating coupon: $e');
+      Fluttertoast.showToast(msg: 'Error updating coupon: ${e.toString()}');
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> deleteCoupon(String couponId) async {
+    _isLoading = true;
+    notifyListeners();
+
+    try {
+      await Future.delayed(const Duration(milliseconds: 300));
+      
+      _allCoupons.removeWhere((coupon) => coupon.id == couponId);
+      Fluttertoast.showToast(msg: 'Coupon deleted successfully!');
+    } catch (e) {
+      print('Error deleting coupon: $e');
+      Fluttertoast.showToast(msg: 'Error deleting coupon: ${e.toString()}');
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> redeemCoupon(String couponId, String userId) async {
+    _isLoading = true;
+    notifyListeners();
+
+    try {
+      await Future.delayed(const Duration(milliseconds: 500));
+      
+      final couponIndex = _allCoupons.indexWhere((c) => c.id == couponId);
+      if (couponIndex == -1) {
+        throw Exception("Coupon does not exist!");
+      }
+
+      final coupon = _allCoupons[couponIndex];
+
+      if (coupon.usedBy.contains(userId)) {
+        throw Exception('Coupon already redeemed by this user.');
+      }
+
+      if (!coupon.isActive) {
+        throw Exception('This coupon is inactive.');
+      }
+
+      if (coupon.validUntil.isBefore(DateTime.now())) {
+        throw Exception('This coupon has expired.');
+      }
+
+      // Update the coupon
+      final updatedUsedBy = List<String>.from(coupon.usedBy)..add(userId);
+      _allCoupons[couponIndex] = coupon.copyWith(
+        usedBy: updatedUsedBy,
+        isActive: coupon.isSingleUse ? false : coupon.isActive,
+      );
+
+      Fluttertoast.showToast(msg: 'Coupon redeemed successfully!');
+    } catch (e) {
+      print('Error redeeming coupon: $e');
+      Fluttertoast.showToast(msg: 'Error: ${e.toString()}');
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
   Coupon? getCouponByBarcodeData(String barcodeData) {
     try {
       return _allCoupons.firstWhere((coupon) => coupon.barcodeData == barcodeData);
     } catch (e) {
-      return null; // Coupon not found
+      return null;
     }
   }
+
+  Future<void> refreshCoupons() async {
+    // In a local system, just notify listeners
+    notifyListeners();
+    Fluttertoast.showToast(msg: 'Coupons refreshed!');
+  }
+
+  // Get analytics data
+  int get totalActiveCoupons => _allCoupons.where((c) => c.isActive).length;
+  int get totalUsedCoupons => _allCoupons.where((c) => c.usedBy.isNotEmpty).length;
+  int get totalExpiredCoupons => _allCoupons.where((c) => c.validUntil.isBefore(DateTime.now())).length;
 }

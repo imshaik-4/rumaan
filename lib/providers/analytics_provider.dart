@@ -27,4 +27,6 @@ class AnalyticsProvider with ChangeNotifier {
       notifyListeners();
     });
   }
+
+  void refreshAnalytics() {}
 }

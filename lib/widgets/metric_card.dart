@@ -12,7 +12,7 @@ class MetricCard extends StatelessWidget {
     required this.title,
     required this.value,
     this.subtitle,
-    this.icon,
+    this.icon, required MaterialColor color, required String trend,
   });
 
   @override

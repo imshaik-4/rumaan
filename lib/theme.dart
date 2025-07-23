@@ -9,9 +9,7 @@ ThemeData appTheme() {
       secondary: Color(0xFF546E7A), // For selected sidebar items
       onSecondary: Colors.white,
       surface: Colors.white, // For cards, backgrounds
-      onSurface: Color(0xFF263238), // Dark text on light surfaces
-      background: Color(0xFFF5F5F5), // Main content background (light grey)
-      onBackground: Color(0xFF263238),
+      onSurface: Color(0xFF263238),
       error: Color(0xFFD32F2F), // Red for errors
       onError: Colors.white,
       outline: Color(0xFFE0E0E0), // For subtle borders

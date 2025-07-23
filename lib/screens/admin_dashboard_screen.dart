@@ -111,7 +111,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           if (isWideScreen) _buildSidebar(context, authProvider),
           Expanded(
             child: Container(
-              color: colorScheme.background, // Use theme background color
+              color: colorScheme.surface, // Use theme background color
               child: _widgetOptions.elementAt(_selectedIndex),
             ),
           ),
@@ -369,17 +369,17 @@ class _DashboardTab extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.dashboard, size: 80.sp, color: colorScheme.onBackground.withOpacity(0.4)),
+          Icon(Icons.dashboard, size: 80.sp, color: colorScheme.onSurface.withOpacity(0.4)),
           SizedBox(height: 16.h),
           Text(
             'Dashboard Overview (Coming Soon!)',
-            style: TextStyle(fontSize: 24.sp, fontWeight: FontWeight.bold, color: colorScheme.onBackground.withOpacity(0.6)),
+            style: TextStyle(fontSize: 24.sp, fontWeight: FontWeight.bold, color: colorScheme.onSurface.withOpacity(0.6)),
             textAlign: TextAlign.center,
           ),
           SizedBox(height: 8.h),
           Text(
             'Your key metrics and quick actions will appear here.',
-            style: TextStyle(fontSize: 16.sp, color: colorScheme.onBackground.withOpacity(0.5)),
+            style: TextStyle(fontSize: 16.sp, color: colorScheme.onSurface.withOpacity(0.5)),
             textAlign: TextAlign.center,
           ),
         ],
@@ -397,17 +397,17 @@ class _SettingsTab extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.settings, size: 80.sp, color: colorScheme.onBackground.withOpacity(0.4)),
+          Icon(Icons.settings, size: 80.sp, color: colorScheme.onSurface.withOpacity(0.4)),
           SizedBox(height: 16.h),
           Text(
             'Settings (Coming Soon!)',
-            style: TextStyle(fontSize: 24.sp, fontWeight: FontWeight.bold, color: colorScheme.onBackground.withOpacity(0.6)),
+            style: TextStyle(fontSize: 24.sp, fontWeight: FontWeight.bold, color: colorScheme.onSurface.withOpacity(0.6)),
             textAlign: TextAlign.center,
           ),
           SizedBox(height: 8.h),
           Text(
             'Manage your application settings here.',
-            style: TextStyle(fontSize: 16.sp, color: colorScheme.onBackground.withOpacity(0.5)),
+            style: TextStyle(fontSize: 16.sp, color: colorScheme.onSurface.withOpacity(0.5)),
             textAlign: TextAlign.center,
           ),
         ],
@@ -450,25 +450,25 @@ class _AnalyticsTab extends StatelessWidget {
                           return MetricCard(
                             title: 'Total Users',
                             value: analyticsProvider.totalUsers.toString(),
-                            icon: Icons.people,
+                            icon: Icons.people, trend: '', color: Colors.blue,
                           );
                         case 1:
                           return MetricCard(
                             title: 'Active Coupons',
                             value: analyticsProvider.activeCoupons.toString(),
-                            icon: Icons.local_activity,
+                            icon: Icons.local_activity,  trend: '',  color: Colors.blue,
                           );
                         case 2:
                           return MetricCard(
                             title: 'Total Logins',
                             value: 'N/A', // Placeholder
-                            icon: Icons.login,
+                            icon: Icons.login, color: Colors.blue, trend: '',
                           );
                         case 3:
                           return MetricCard(
                             title: 'Total Savings',
                             value: 'N/A', // Placeholder
-                            icon: Icons.attach_money,
+                            icon: Icons.attach_money, color: Colors.blue, trend: '',
                           );
                         default:
                           return Container();
@@ -833,7 +833,7 @@ class _CreateCouponTabState extends State<_CreateCouponTab> {
 }
 
 class _ScanCouponTab extends StatefulWidget {
-  const _ScanCouponTab({super.key});
+  const _ScanCouponTab();
   @override
   State<_ScanCouponTab> createState() => _ScanCouponTabState();
 }
